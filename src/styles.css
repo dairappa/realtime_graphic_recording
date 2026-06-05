@@ -1,0 +1,129 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 320px;
+  flex: 0 0 320px;
+  padding: 16px;
+  overflow-y: auto;
+  background: #f7f7f8;
+  border-right: 1px solid #e3e3e6;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sidebar h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.muted {
+  color: #777;
+  font-size: 12px;
+  margin: 0;
+}
+.sidebar section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sidebar label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+}
+.sidebar select,
+.sidebar input {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 100%;
+}
+.radios {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.radios label {
+  font-weight: 400;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+.section.disabled,
+.disabled {
+  opacity: 0.5;
+}
+.hint {
+  font-size: 11px;
+  color: #888;
+  margin: 2px 0 0;
+}
+
+button {
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+button.primary {
+  background: #2b6ef2;
+  color: #fff;
+}
+button.stop {
+  background: #e23b3b;
+  color: #fff;
+}
+
+.error {
+  color: #c0392b;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.transcript {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  border-top: 1px solid #e3e3e6;
+  padding-top: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.line {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #fff;
+}
+.line.remote {
+  background: #eef4ff;
+}
+.line.interim {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.canvas {
+  flex: 1;
+  position: relative;
+}

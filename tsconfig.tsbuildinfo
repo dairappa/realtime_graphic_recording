@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/session.ts","./src/types.ts","./src/audio/capture.ts","./src/canvas/graphRenderer.ts","./src/structure/heuristic.ts","./src/structure/llm.ts","./src/structure/types.ts","./src/stt/deepgram.ts","./src/stt/types.ts","./src/stt/webSpeech.ts"],"version":"5.9.3"}
