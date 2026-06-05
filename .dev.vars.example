@@ -1,0 +1,9 @@
+# ローカルで `wrangler pages dev` を使うときの環境変数サンプル。
+# このファイルを `.dev.vars` にコピーして値を入れる（.dev.vars は gitignore 済み）。
+
+# Basic 認証（最小限の認証）
+APP_USER=team
+APP_PASSWORD=changeme
+
+# Claude をサーバ経由で使う場合のみ
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxx

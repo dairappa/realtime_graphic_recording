@@ -3,7 +3,8 @@
 会議・ワークショップの音声をリアルタイムに書き起こし、AI で論点を構造化して
 **tldraw キャンバス上に「育つグラレコ」**として描画する Web アプリ。
 
-設計の全体像・技術選定は [`PLAN.md`](./PLAN.md) を参照。
+設計の全体像・技術選定は [`PLAN.md`](./PLAN.md)、
+Cloudflare へのデプロイ（最小認証つき）は [`DEPLOY.md`](./DEPLOY.md) を参照。
 
 ## このプロトでできること
 
@@ -39,16 +40,25 @@ npm run dev
 2. **Windows**: VB-Cable を入れ、「このデバイスを聴く」で実スピーカーへ転送。
 3. アプリのサイドバーで、相手の声の入力として仮想デバイスを選択。
 
+## デプロイ（Cloudflare Pages・最小認証つき）
+
+全ルートに Basic 認証（共有パスワード1つ）を掛けた状態で公開できる。
+手順は [`DEPLOY.md`](./DEPLOY.md)。最短はダッシュボードの Git 連携で
+Build command `npm run build` / 出力 `dist`、Secret に `APP_PASSWORD` を設定。
+
 ## 構成
 
 ```
 src/
   audio/capture.ts        # 2 ストリーム取得（mic / display / 仮想デバイス）
   stt/                    # SttProvider: webSpeech.ts / deepgram.ts
-  structure/              # Structurer: heuristic.ts / llm.ts(Claude)
+  structure/              # Structurer: heuristic.ts / llm.ts(Claude: 直結/サーバ経由)
   canvas/graphRenderer.ts # GraphPatch → tldraw シェイプ
   session.ts              # capture→STT→structurer→renderer の束ね
   App.tsx                 # UI
+functions/
+  _middleware.ts          # 全ルートに Basic 認証（最小限の認証）
+  api/anthropic.ts        # Claude プロキシ（APIキーをサーバ秘匿）
 ```
 
 ## 注意（プロト段階）

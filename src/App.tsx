@@ -22,6 +22,7 @@ import type { Speaker } from './types'
 
 type CaptureMode = 'browser' | 'desktop'
 type SttKind = 'webspeech' | 'deepgram'
+type StructureMode = 'local' | 'proxy' | 'direct'
 
 interface Line {
   speaker: Speaker
@@ -40,6 +41,7 @@ export function App() {
   const [mode, setMode] = useState<CaptureMode>('browser')
   const [sttKind, setSttKind] = useState<SttKind>('webspeech')
   const [deepgramKey, setDeepgramKey] = useState('')
+  const [structureMode, setStructureMode] = useState<StructureMode>('local')
   const [llmKey, setLlmKey] = useState('')
 
   const [running, setRunning] = useState(false)
@@ -92,16 +94,17 @@ export function App() {
       const makeStt = (): SttProvider =>
         sttKind === 'deepgram' ? new DeepgramStt(deepgramKey) : new WebSpeechStt()
 
-      const structurer: Structurer = llmKey
-        ? new LlmStructurer(llmKey)
-        : new HeuristicStructurer()
+      let structurer: Structurer
+      if (structureMode === 'proxy') structurer = new LlmStructurer({ endpoint: '/api/anthropic' })
+      else if (structureMode === 'direct') structurer = new LlmStructurer({ apiKey: llmKey })
+      else structurer = new HeuristicStructurer()
 
       const renderer = new GraphRenderer(editorRef.current)
       const session = new Session({
         renderer,
         structurer,
         makeStt,
-        flushIntervalMs: llmKey ? 8000 : 1500,
+        flushIntervalMs: structureMode === 'local' ? 1500 : 8000,
         onTranscript: (r) => pushLine({ speaker: r.speaker, text: r.text, final: r.isFinal }),
         onError: (e) => setError(String(e)),
       })
@@ -203,14 +206,27 @@ export function App() {
 
         <section>
           <label>構造化エンジン</label>
-          <input
-            type="password"
-            placeholder="Claude API キー（空ならローカル簡易抽出）"
-            value={llmKey}
-            onChange={(e) => setLlmKey(e.target.value)}
+          <select
+            value={structureMode}
+            onChange={(e) => setStructureMode(e.target.value as StructureMode)}
             disabled={running}
-          />
-          <p className="hint">{llmKey ? 'Claude で差分構造化' : 'キー未入力 → ローカル簡易 Structurer'}</p>
+          >
+            <option value="local">ローカル簡易抽出（キー不要）</option>
+            <option value="proxy">Claude（サーバ経由・デプロイ時）</option>
+            <option value="direct">Claude（ブラウザ直結・ローカル検証）</option>
+          </select>
+          {structureMode === 'direct' && (
+            <input
+              type="password"
+              placeholder="Claude API キー"
+              value={llmKey}
+              onChange={(e) => setLlmKey(e.target.value)}
+              disabled={running}
+            />
+          )}
+          {structureMode === 'proxy' && (
+            <p className="hint">/api/anthropic 経由（キーはサーバ秘匿）。Cloudflare で ANTHROPIC_API_KEY 設定が必要。</p>
+          )}
         </section>
 
         {!running ? (

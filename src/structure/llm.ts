@@ -10,37 +10,61 @@ const SYSTEM = `あなたは会議のグラフィックレコーディングを�
  "updateNodes":[{"id":"既存ID","label":"更新後"}]}
 新規IDは必ずユニークに。既存ノードと重複する話題は addNodes せず updateNodes か addEdges で繋ぐこと。`
 
+export interface LlmStructurerOptions {
+  /** ブラウザ直結モードの API キー（ローカル検証用）。 */
+  apiKey?: string
+  /** サーバプロキシのエンドポイント（本番。例: /api/anthropic）。指定時はキー不要。 */
+  endpoint?: string
+  model?: string
+}
+
 /**
- * Claude を使う差分 Structurer（PLAN.md §4）。任意・キー必要。
- * ⚠️ 本番では Cloudflare Worker 経由にしてキーを秘匿すること。
- * ここは anthropic-dangerous-direct-browser-access でローカル検証する直結実装。
+ * Claude を使う差分 Structurer（PLAN.md §4）。
+ *
+ * 2 モード:
+ *  - endpoint 指定: Cloudflare Function 経由（キーはサーバ秘匿）← 本番推奨
+ *  - apiKey 指定:   ブラウザ直結（ローカル検証用）
  */
 export class LlmStructurer implements Structurer {
-  constructor(
-    private apiKey: string,
-    private model = 'claude-sonnet-4-6',
-  ) {}
+  private apiKey?: string
+  private endpoint?: string
+  private model: string
+
+  constructor(opts: LlmStructurerOptions) {
+    this.apiKey = opts.apiKey
+    this.endpoint = opts.endpoint
+    this.model = opts.model ?? 'claude-sonnet-4-6'
+  }
 
   async ingest(segments: TranscriptSegment[], state: GraphState): Promise<GraphPatch> {
     const transcript = segments.map((s) => `[${s.speaker}] ${s.text}`).join('\n')
     const userContent =
       `## 現在のグラレコ状態\n${JSON.stringify(state)}\n\n## 直近の発話\n${transcript}`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 1024,
-        system: SYSTEM,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    })
+    const payload = {
+      model: this.model,
+      max_tokens: 1024,
+      system: SYSTEM,
+      messages: [{ role: 'user', content: userContent }],
+    }
+
+    const res = this.endpoint
+      ? await fetch(this.endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'include', // Basic 認証クレデンシャルを同送
+          body: JSON.stringify(payload),
+        })
+      : await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': this.apiKey ?? '',
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify(payload),
+        })
     if (!res.ok) throw new Error(`Claude API エラー: ${res.status} ${await res.text()}`)
 
     const data = await res.json()
