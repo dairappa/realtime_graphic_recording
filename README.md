@@ -40,11 +40,13 @@ npm run dev
 2. **Windows**: VB-Cable を入れ、「このデバイスを聴く」で実スピーカーへ転送。
 3. アプリのサイドバーで、相手の声の入力として仮想デバイスを選択。
 
-## デプロイ（Cloudflare Pages・最小認証つき）
+## デプロイ（Cloudflare Workers・最小認証つき）
 
+1つの Worker が「静的SPA配信 + Basic 認証 + Claude プロキシ」を担当する。
 全ルートに Basic 認証（共有パスワード1つ）を掛けた状態で公開できる。
 手順は [`DEPLOY.md`](./DEPLOY.md)。最短はダッシュボードの Git 連携で
-Build command `npm run build` / 出力 `dist`、Secret に `APP_PASSWORD` を設定。
+Build command `npm run build` / Deploy command `npx wrangler deploy`、
+Secret に `APP_PASSWORD` を設定。
 
 ## 構成
 
@@ -56,9 +58,9 @@ src/
   canvas/graphRenderer.ts # GraphPatch → tldraw シェイプ
   session.ts              # capture→STT→structurer→renderer の束ね
   App.tsx                 # UI
-functions/
-  _middleware.ts          # 全ルートに Basic 認証（最小限の認証）
-  api/anthropic.ts        # Claude プロキシ（APIキーをサーバ秘匿）
+worker/
+  index.ts                # 静的配信 + Basic認証 + Claudeプロキシ(/api/anthropic)
+wrangler.toml             # main(worker) + [assets](dist)
 ```
 
 ## 注意（プロト段階）

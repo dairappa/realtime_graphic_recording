@@ -1,3 +1,12 @@
 name = "realtime-graphic-recording"
+main = "worker/index.ts"
 compatibility_date = "2025-01-01"
-pages_build_output_dir = "dist"
+
+# Vite のビルド成果物を静的アセットとして配信。
+# run_worker_first=true で、静的アセットも含め全リクエストが Worker を通る
+# （= Basic 認証を全体に掛けるため）。
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "single-page-application"

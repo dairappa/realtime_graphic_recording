@@ -1,13 +1,13 @@
-# Cloudflare Pages へのデプロイ（最小認証つき）
+# Cloudflare へのデプロイ（最小認証つき）
 
-静的SPA（Vite）＋ Pages Functions（Basic 認証 / Claude プロキシ）を
-Cloudflare Pages にデプロイする手順。**HTTPS が自動で付く**ので、
-Basic 認証のパスワードもマイク/画面共有(getUserMedia/getDisplayMedia)も安全に動く。
+**Cloudflare Workers（静的アセット配信）** としてデプロイする。1つの Worker が
+「静的SPA配信 + Basic 認証 + Claude プロキシ」をまとめて担当する。HTTPS が自動で
+付くので、Basic 認証もマイク/画面共有(getUserMedia/getDisplayMedia)も安全に動く。
 
 構成:
 - `dist/` … Vite ビルド成果物（静的アセット）
-- `functions/_middleware.ts` … **全ルートに Basic 認証**
-- `functions/api/anthropic.ts` … Claude へのプロキシ（キーをサーバ秘匿）
+- `worker/index.ts` … 全リクエストに Basic 認証 → `/api/anthropic` は Claude へプロキシ → それ以外は `dist` を配信
+- `wrangler.toml` … `main`(worker) と `[assets]`(dist) を定義
 
 ---
 
@@ -24,44 +24,53 @@ Basic 認証のパスワードもマイク/画面共有(getUserMedia/getDisplayM
 
 ---
 
+## いま deploy でコケた人向け（最短復旧）
+
+ビルドは成功し、最後の `wrangler deploy` で
+`Missing entry-point to Worker script or to assets directory` が出ていた場合、
+このリポジトリの **Workers 構成への修正（`worker/` と `wrangler.toml`）を取り込めば解決** する。
+
+1. この修正を **Cloudflare がビルドしているブランチ（例 `demo`）に反映**する
+   （push すれば自動で再デプロイが走る）
+2. Worker の **Settings → Variables and Secrets** に `APP_PASSWORD` が入っているか確認
+   （無ければ追加して Encrypt → 再デプロイ）
+
+これで `wrangler deploy` が成功し、`https://<worker>.<account>.workers.dev` で開ける。
+
+---
+
 ## 方法A: ダッシュボードで Git 連携（推奨・push で自動デプロイ）
 
-1. Cloudflare ダッシュボード → **Workers & Pages → Create → Pages → Connect to Git**
-2. このリポジトリを選択し、ビルド設定:
+1. Cloudflare ダッシュボード → **Workers & Pages → Create**
+2. **Import a repository**（Git からインポート）でこのリポジトリを選択
+3. ビルド設定:
    - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-   - （Functions は `functions/` を自動検出）
-3. **Settings → Variables and Secrets** に登録:
-   - `APP_PASSWORD`（Secret） … 任意の共有パスワード
+   - **Deploy command**: `npx wrangler deploy`（既定のままでOK）
+   - **Production branch**: `demo`（動作確認用に作ったブランチ）
+4. **Settings → Variables and Secrets** に登録:
+   - `APP_PASSWORD`（Encrypt 推奨）
    - 任意で `APP_USER`、`ANTHROPIC_API_KEY`
-4. 保存して **Deploy**。以後は対象ブランチへ push するたび自動デプロイ。
+5. 保存 → デプロイ。以後は `demo` へ push するたび自動デプロイ。
 
 ## 方法B: CLI（wrangler）
 
 ```bash
-# 1) ログイン（ブラウザが開く）
 npx wrangler login
+npm run deploy   # = npm run build && wrangler deploy
 
-# 2) ビルド＆初回デプロイ（プロジェクトが無ければ作成される）
-npm run deploy        # = npm run build && wrangler pages deploy
+# シークレット設定（Worker 名は wrangler.toml の name）
+npx wrangler secret put APP_PASSWORD
+npx wrangler secret put APP_USER          # 任意
+npx wrangler secret put ANTHROPIC_API_KEY # 任意
 
-# 3) シークレットを設定（プロジェクト名は wrangler.toml の name）
-npx wrangler pages secret put APP_PASSWORD   --project-name realtime-graphic-recording
-npx wrangler pages secret put APP_USER       --project-name realtime-graphic-recording   # 任意
-npx wrangler pages secret put ANTHROPIC_API_KEY --project-name realtime-graphic-recording # 任意
-
-# 4) シークレット反映のため再デプロイ
-npm run deploy
+npm run deploy   # 反映のため再デプロイ
 ```
-
-デプロイ後、`https://<project>.pages.dev` を開くと Basic 認証のダイアログが出る。
-`APP_USER` / `APP_PASSWORD` を入力すればアプリが表示される。
 
 ---
 
 ## 動作確認の最短経路（キー不要）
 
-1. デプロイ先 URL を開き、Basic 認証を通過
+1. デプロイ先 URL を開き、Basic 認証（`APP_USER` / `APP_PASSWORD`）を通過
 2. サイドバーは初期値のまま（STT=**Web Speech API**、構造化=**ローカル簡易抽出**）
 3. **収録開始** → マイクに話すと、発話がノード化されて tldraw 上に増えていく
 
@@ -73,11 +82,11 @@ npm run deploy
 - サイドバーの構造化エンジンを **「Claude（サーバ経由・デプロイ時）」** に切替
 - ブラウザにキーは載らず、`/api/anthropic`（Basic 認証で保護）経由で呼ぶ
 
-## ローカルで Functions ごと動かす
+## ローカルで Worker ごと動かす
 
 ```bash
 cp .dev.vars.example .dev.vars   # APP_PASSWORD 等を記入
-npm run cf:dev                   # = build して wrangler pages dev
+npm run cf:dev                   # = build して wrangler dev
 # http://localhost:8788 で Basic 認証つきで確認
 ```
 
@@ -88,4 +97,4 @@ npm run cf:dev                   # = build して wrangler pages dev
 - **Deepgram は現状ブラウザ直結**（WebSocket）。本番でキーを隠すには Worker での
   WS プロキシ or 短命キー発行が必要（次フェーズ）。動作確認は Web Speech で完結する。
 - Basic 認証は「最小限」。本格運用は **Cloudflare Access（Zero Trust / SSO）** へ
-  差し替え推奨（メール認証・無料枠50ユーザー）。`_middleware.ts` を外すだけで両立可。
+  差し替え推奨（メール認証・無料枠50ユーザー）。
