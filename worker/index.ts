@@ -76,10 +76,21 @@ async function proxyAnthropic(request: Request, env: Env): Promise<Response> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url)
+
+    // 診断用: 実行時 env にシークレットが届いているかを確認する（値は返さない）。
+    // 確認が済んだら削除してよい。
+    if (url.pathname === '/api/_authcheck') {
+      return Response.json({
+        hasPassword: !!env.APP_PASSWORD,
+        user: env.APP_USER || 'team (default)',
+        hasAnthropicKey: !!env.ANTHROPIC_API_KEY,
+      })
+    }
+
     // 全リクエストに Basic 認証（run_worker_first=true なので静的アセットも通る）
     if (!isAuthorized(request, env)) return unauthorized()
 
-    const url = new URL(request.url)
     if (url.pathname === '/api/anthropic') {
       if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
       return proxyAnthropic(request, env)
