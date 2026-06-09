@@ -11,7 +11,7 @@ Cloudflare へのデプロイ（最小認証つき）は [`DEPLOY.md`](./DEPLOY.
 - tldraw キャンバスへ、発話を逐次ノード化して描画（時系列リンク）
 - 音声取込: マイク（自分）＋ 相手の声（画面共有タブ音声 / 仮想オーディオデバイス）
 - STT: **Web Speech API（無料・キー不要）** / Deepgram（要キー・相手の声も対応）
-- 構造化: **ローカル簡易抽出（キー不要）** / Claude（要キー・差分構造化）
+- 構造化: **ローカル簡易抽出（キー不要）** / OpenAI（要キー・差分構造化）
 
 > **すぐ試す最短経路**: STT=Web Speech、構造化=キー無し（ローカル）。
 > Chrome で開いてマイクに話すと、発話がノードになって増えていきます。
@@ -42,7 +42,7 @@ npm run dev
 
 ## デプロイ（Cloudflare Workers・最小認証つき）
 
-1つの Worker が「静的SPA配信 + Basic 認証 + Claude プロキシ」を担当する。
+1つの Worker が「静的SPA配信 + Basic 認証 + OpenAI プロキシ」を担当する。
 全ルートに Basic 認証（共有パスワード1つ）を掛けた状態で公開できる。
 手順は [`DEPLOY.md`](./DEPLOY.md)。最短はダッシュボードの Git 連携で
 Build command `npm run build` / Deploy command `npx wrangler deploy`、
@@ -54,12 +54,12 @@ Secret に `APP_PASSWORD` を設定。
 src/
   audio/capture.ts        # 2 ストリーム取得（mic / display / 仮想デバイス）
   stt/                    # SttProvider: webSpeech.ts / deepgram.ts
-  structure/              # Structurer: heuristic.ts / llm.ts(Claude: 直結/サーバ経由)
+  structure/              # Structurer: heuristic.ts / llm.ts(OpenAI: 直結/サーバ経由)
   canvas/graphRenderer.ts # GraphPatch → tldraw シェイプ
   session.ts              # capture→STT→structurer→renderer の束ね
   App.tsx                 # UI
 worker/
-  index.ts                # 静的配信 + Basic認証 + Claudeプロキシ(/api/anthropic)
+  index.ts                # 静的配信 + Basic認証 + OpenAIプロキシ(/api/openai)
 wrangler.toml             # main(worker) + [assets](dist)
 ```
 

@@ -1,12 +1,12 @@
 # Cloudflare へのデプロイ（最小認証つき）
 
 **Cloudflare Workers（静的アセット配信）** としてデプロイする。1つの Worker が
-「静的SPA配信 + Basic 認証 + Claude プロキシ」をまとめて担当する。HTTPS が自動で
+「静的SPA配信 + Basic 認証 + OpenAI プロキシ」をまとめて担当する。HTTPS が自動で
 付くので、Basic 認証もマイク/画面共有(getUserMedia/getDisplayMedia)も安全に動く。
 
 構成:
 - `dist/` … Vite ビルド成果物（静的アセット）
-- `worker/index.ts` … 全リクエストに Basic 認証 → `/api/anthropic` は Claude へプロキシ → それ以外は `dist` を配信
+- `worker/index.ts` … 全リクエストに Basic 認証 → `/api/openai` は OpenAI へプロキシ → それ以外は `dist` を配信
 - `wrangler.toml` … `main`(worker) と `[assets]`(dist) を定義
 
 ---
@@ -20,7 +20,7 @@
 |---|---|---|
 | `APP_PASSWORD` | Basic 認証のパスワード | 認証を有効にするなら必須 |
 | `APP_USER` | Basic 認証のユーザー名（既定 `team`） | 任意 |
-| `ANTHROPIC_API_KEY` | Claude サーバ経由モードを使う場合のみ | 任意 |
+| `OPENAI_API_KEY` | OpenAI サーバ経由モードを使う場合のみ | 任意 |
 
 ---
 
@@ -49,7 +49,7 @@
    - **Production branch**: `demo`（動作確認用に作ったブランチ）
 4. **Settings → Variables and Secrets** に登録:
    - `APP_PASSWORD`（Encrypt 推奨）
-   - 任意で `APP_USER`、`ANTHROPIC_API_KEY`
+   - 任意で `APP_USER`、`OPENAI_API_KEY`
 5. 保存 → デプロイ。以後は `demo` へ push するたび自動デプロイ。
 
 ## 方法B: CLI（wrangler）
@@ -61,7 +61,7 @@ npm run deploy   # = npm run build && wrangler deploy
 # シークレット設定（Worker 名は wrangler.toml の name）
 npx wrangler secret put APP_PASSWORD
 npx wrangler secret put APP_USER          # 任意
-npx wrangler secret put ANTHROPIC_API_KEY # 任意
+npx wrangler secret put OPENAI_API_KEY    # 任意
 
 npm run deploy   # 反映のため再デプロイ
 ```
@@ -74,13 +74,13 @@ npm run deploy   # 反映のため再デプロイ
 2. サイドバーは初期値のまま（STT=**Web Speech API**、構造化=**ローカル簡易抽出**）
 3. **収録開始** → マイクに話すと、発話がノード化されて tldraw 上に増えていく
 
-→ ここまでは Deepgram も Claude も不要で動作確認できる。
+→ ここまでは Deepgram も OpenAI も不要で動作確認できる。
 
-## Claude をサーバ経由で使う場合
+## OpenAI をサーバ経由で使う場合
 
-- `ANTHROPIC_API_KEY` を設定してデプロイ
-- サイドバーの構造化エンジンを **「Claude（サーバ経由・デプロイ時）」** に切替
-- ブラウザにキーは載らず、`/api/anthropic`（Basic 認証で保護）経由で呼ぶ
+- `OPENAI_API_KEY` を設定してデプロイ
+- サイドバーの構造化エンジンを **「OpenAI（サーバ経由・デプロイ時）」** に切替
+- ブラウザにキーは載らず、`/api/openai`（Basic 認証で保護）経由で呼ぶ
 
 ## ローカルで Worker ごと動かす
 

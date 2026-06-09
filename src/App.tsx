@@ -95,7 +95,7 @@ export function App() {
         sttKind === 'deepgram' ? new DeepgramStt(deepgramKey) : new WebSpeechStt()
 
       let structurer: Structurer
-      if (structureMode === 'proxy') structurer = new LlmStructurer({ endpoint: '/api/anthropic' })
+      if (structureMode === 'proxy') structurer = new LlmStructurer({ endpoint: '/api/openai' })
       else if (structureMode === 'direct') structurer = new LlmStructurer({ apiKey: llmKey })
       else structurer = new HeuristicStructurer()
 
@@ -212,20 +212,20 @@ export function App() {
             disabled={running}
           >
             <option value="local">ローカル簡易抽出（キー不要）</option>
-            <option value="proxy">Claude（サーバ経由・デプロイ時）</option>
-            <option value="direct">Claude（ブラウザ直結・ローカル検証）</option>
+            <option value="proxy">OpenAI（サーバ経由・デプロイ時）</option>
+            <option value="direct">OpenAI（ブラウザ直結・ローカル検証）</option>
           </select>
           {structureMode === 'direct' && (
             <input
               type="password"
-              placeholder="Claude API キー"
+              placeholder="OpenAI API キー"
               value={llmKey}
               onChange={(e) => setLlmKey(e.target.value)}
               disabled={running}
             />
           )}
           {structureMode === 'proxy' && (
-            <p className="hint">/api/anthropic 経由（キーはサーバ秘匿）。Cloudflare で ANTHROPIC_API_KEY 設定が必要。</p>
+            <p className="hint">/api/openai 経由（キーはサーバ秘匿）。Cloudflare で OPENAI_API_KEY 設定が必要。</p>
           )}
         </section>
 

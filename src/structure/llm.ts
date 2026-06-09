@@ -13,17 +13,18 @@ const SYSTEM = `あなたは会議のグラフィックレコーディングを�
 export interface LlmStructurerOptions {
   /** ブラウザ直結モードの API キー（ローカル検証用）。 */
   apiKey?: string
-  /** サーバプロキシのエンドポイント（本番。例: /api/anthropic）。指定時はキー不要。 */
+  /** サーバプロキシのエンドポイント（本番。例: /api/openai）。指定時はキー不要。 */
   endpoint?: string
+  /** OpenAI のモデル。コスト重視なら gpt-4o-mini が手頃。 */
   model?: string
 }
 
 /**
- * Claude を使う差分 Structurer（PLAN.md §4）。
+ * OpenAI を使う差分 Structurer（PLAN.md §4）。
  *
  * 2 モード:
- *  - endpoint 指定: Cloudflare Function 経由（キーはサーバ秘匿）← 本番推奨
- *  - apiKey 指定:   ブラウザ直結（ローカル検証用）
+ *  - endpoint 指定: Cloudflare Worker 経由（キーはサーバ秘匿）← 本番推奨
+ *  - apiKey 指定:   ブラウザ直結（ローカル検証用。キーが露出する点に注意）
  */
 export class LlmStructurer implements Structurer {
   private apiKey?: string
@@ -33,7 +34,7 @@ export class LlmStructurer implements Structurer {
   constructor(opts: LlmStructurerOptions) {
     this.apiKey = opts.apiKey
     this.endpoint = opts.endpoint
-    this.model = opts.model ?? 'claude-sonnet-4-6'
+    this.model = opts.model ?? 'gpt-4o-mini'
   }
 
   async ingest(segments: TranscriptSegment[], state: GraphState): Promise<GraphPatch> {
@@ -43,9 +44,12 @@ export class LlmStructurer implements Structurer {
 
     const payload = {
       model: this.model,
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: userContent },
+      ],
+      response_format: { type: 'json_object' },
       max_tokens: 1024,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: userContent }],
     }
 
     const res = this.endpoint
@@ -55,20 +59,18 @@ export class LlmStructurer implements Structurer {
           credentials: 'include', // Basic 認証クレデンシャルを同送
           body: JSON.stringify(payload),
         })
-      : await fetch('https://api.anthropic.com/v1/messages', {
+      : await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            'x-api-key': this.apiKey ?? '',
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
+            authorization: `Bearer ${this.apiKey ?? ''}`,
           },
           body: JSON.stringify(payload),
         })
-    if (!res.ok) throw new Error(`Claude API エラー: ${res.status} ${await res.text()}`)
+    if (!res.ok) throw new Error(`OpenAI API エラー: ${res.status} ${await res.text()}`)
 
     const data = await res.json()
-    const text: string = data.content?.[0]?.text ?? '{}'
+    const text: string = data.choices?.[0]?.message?.content ?? '{}'
     return parsePatch(text)
   }
 }

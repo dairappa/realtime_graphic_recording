@@ -5,5 +5,5 @@
 APP_USER=team
 APP_PASSWORD=changeme
 
-# Claude をサーバ経由で使う場合のみ
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+# OpenAI をサーバ経由で使う場合のみ
+OPENAI_API_KEY=sk-xxxxxxxx

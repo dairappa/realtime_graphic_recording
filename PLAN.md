@@ -35,7 +35,7 @@ tldraw キャンバス上に「育つグラレコ」として描画する Web �
 | 音声取込 | getUserMedia / getDisplayMedia / 仮想デバイス | 下記キャプチャ層参照 |
 | STT | **Deepgram** ストリーミング（×2系統） | 高精度・低遅延・話者分離つきで激安 |
 | STT(プロト) | Web Speech API | 無料・キー不要（デフォルト入力のみ） |
-| 構造化 | **Claude Sonnet** or **Gemini Flash**（差し替え可） | tool use で構造化JSON / 差分設計でトークン節約 |
+| 構造化 | **OpenAI (gpt-4o-mini)**（差し替え可） | JSON mode で構造化出力 / 差分設計でトークン節約 |
 | 画像素材 | Gemini画像 / GPT Image（**非同期・キャッシュ**） | "映え"担保。リアルタイム経路には載せない |
 | 中継 | Cloudflare Workers + Durable Objects | WebSocket常駐を安価に・APIキー秘匿プロキシ |
 | ホスト | Cloudflare Pages | 無料枠 |
@@ -94,7 +94,7 @@ STT も Structurer も実装を差し替え可能に。プロキシ(Worker)越�
   - 音声取込（mic + display + デバイス選択）/ STT（Web Speech, Deepgram差込）/
     構造化（ローカル簡易, LLM差込）/ tldraw 描画
   - **キー不要で即動く**よう、デフォルトは Web Speech API + ローカル構造化
-- **Phase 1**: Deepgram 2系統 + Claude/Gemini 差分構造化を Worker 経由で接続
+- **Phase 1**: Deepgram 2系統 + OpenAI 差分構造化を Worker 経由で接続
 - **Phase 2**: 画像生成によるアイコン素材の非同期生成＆キャッシュ
 - **Phase 3**: Electron 化で仮想デバイス不要のシステム音取込（ScreenCaptureKit / WASAPI）
 
