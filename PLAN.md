@@ -96,7 +96,9 @@ STT も Structurer も実装を差し替え可能に。プロキシ(Worker)越�
   - **キー不要で即動く**よう、デフォルトは Web Speech API + ローカル構造化
 - **Phase 1** ✅: Deepgram 2系統 + OpenAI 差分構造化を Worker 経由で接続
   （`/api/deepgram` WS 中継 + 短命チケット認可、`/api/openai` プロキシ）
-- **Phase 2**: 画像生成によるアイコン素材の非同期生成＆キャッシュ
+- **Phase 2** ✅: 画像生成によるアイコン素材の非同期生成＆キャッシュ
+  （`/api/icon` = gpt-image-1 + Cache API。emoji フォールバック・クリティカルパス外）
+  ＋ ローカル永続化（tldraw persistenceKey）/ PNG・JSON エクスポート
 - **Phase 3**: Electron 化で仮想デバイス不要のシステム音取込（ScreenCaptureKit / WASAPI）
 
 ## 8. このプロトのスコープ（Phase 0）
@@ -109,4 +111,5 @@ STT も Structurer も実装を差し替え可能に。プロキシ(Worker)越�
 - 差分パッチ → GraphState → tldraw 反映
 
 含まない（後続フェーズ）:
-- Deepgram 実接続 / Cloudflare デプロイ / 画像生成 / 共同編集同期 / 永続化
+- ~~Deepgram 実接続~~ ✅ Phase 1 / ~~Cloudflare デプロイ~~ ✅ / ~~画像生成~~ ✅ Phase 2 /
+  共同編集同期（未着手） / ~~永続化~~ ✅（ローカル永続化+エクスポート。サーバ永続化は未着手）

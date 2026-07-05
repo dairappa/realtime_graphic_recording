@@ -84,6 +84,15 @@ npm run deploy   # 反映のため再デプロイ
 - サイドバーの構造化エンジンを **「OpenAI（サーバ経由・デプロイ時）」** に切替
 - ブラウザにキーは載らず、`/api/openai`（Basic 認証で保護）経由で呼ぶ
 
+## AI生成アイコンを使う場合（Phase 2）
+
+- `OPENAI_API_KEY` を設定してデプロイ（構造化と同じキーを使う）
+- サイドバーのアイコンを **「AI生成（サーバ経由・デプロイ時）」** に切替
+- `GET /api/icon?q=<keyword>` が gpt-image-1（quality: low ≒ 1枚 約2円）で
+  手描き風アイコンを生成し、**Cache API で同一キーワードを再利用**（2回目以降は無料・即時）
+- 生成はリアルタイム経路の外（非同期）。失敗時は絵文字にフォールバックする
+- 注意: gpt-image-1 は OpenAI 組織の認証(Verification)が必要な場合がある
+
 ## Deepgram をサーバ経由で使う場合（Phase 1）
 
 - `DEEPGRAM_API_KEY` を設定してデプロイ

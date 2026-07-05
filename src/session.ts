@@ -1,11 +1,18 @@
 import { GraphRenderer } from './canvas/graphRenderer'
+import type { IconProvider } from './icons/provider'
 import type { SttProvider, SttResult } from './stt/types'
 import type { Structurer } from './structure/types'
-import { emptyGraph, type GraphPatch, type GraphState, type Speaker, type TranscriptSegment } from './types'
+import { emptyGraph, type GraphNode, type GraphPatch, type GraphState, type Speaker, type TranscriptSegment } from './types'
 
 export interface Source {
   stream: MediaStream
   speaker: Speaker
+}
+
+export interface SessionSnapshot {
+  savedAt: string
+  graph: GraphState
+  transcript: TranscriptSegment[]
 }
 
 export interface SessionDeps {
@@ -13,6 +20,8 @@ export interface SessionDeps {
   structurer: Structurer
   /** STT を生成するファクトリ（プロバイダごとに別インスタンスが要る）。 */
   makeStt: () => SttProvider
+  /** アイコン解決（省略時はアイコンなし）。非同期経路でノードに描き足す。 */
+  iconProvider?: IconProvider
   /** 構造化を流す間隔(ms)。LLM は長め、ローカルは短め。 */
   flushIntervalMs: number
   onTranscript?: (r: SttResult) => void
@@ -23,11 +32,21 @@ export interface SessionDeps {
 export class Session {
   private state: GraphState = emptyGraph()
   private pending: TranscriptSegment[] = []
+  private history: TranscriptSegment[] = []
   private stts: SttProvider[] = []
   private timer: number | null = null
   private flushing = false
 
   constructor(private deps: SessionDeps) {}
+
+  /** 現在のグラフ状態と書き起こし全文（JSONエクスポート用）。 */
+  getSnapshot(): SessionSnapshot {
+    return {
+      savedAt: new Date().toISOString(),
+      graph: { nodes: [...this.state.nodes], edges: [...this.state.edges] },
+      transcript: [...this.history],
+    }
+  }
 
   async start(sources: Source[]) {
     for (const src of sources) {
@@ -41,7 +60,9 @@ export class Session {
   private onResult(r: SttResult) {
     this.deps.onTranscript?.(r)
     if (r.isFinal && r.text.trim()) {
-      this.pending.push({ text: r.text.trim(), speaker: r.speaker, ts: Date.now() })
+      const seg: TranscriptSegment = { text: r.text.trim(), speaker: r.speaker, ts: Date.now() }
+      this.pending.push(seg)
+      this.history.push(seg)
     }
   }
 
@@ -70,6 +91,19 @@ export class Session {
       if (n) Object.assign(n, upd)
     }
     this.deps.renderer.apply(patch)
+    // アイコンは非同期・ベストエフォート（クリティカルパスに載せない: PLAN.md §1）
+    for (const node of patch.addNodes ?? []) void this.resolveIcon(node)
+  }
+
+  private async resolveIcon(node: GraphNode) {
+    const provider = this.deps.iconProvider
+    if (!provider) return
+    try {
+      const icon = await provider.getIcon(node)
+      if (icon) this.deps.renderer.applyIcon(node.id, icon)
+    } catch {
+      /* アイコンは装飾なので失敗しても本編は続行 */
+    }
   }
 
   stop(sources: Source[]) {

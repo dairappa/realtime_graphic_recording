@@ -11,7 +11,8 @@ import {
   type AudioInputDevice,
 } from './audio/capture'
 import { GraphRenderer } from './canvas/graphRenderer'
-import { Session, type Source } from './session'
+import { EmojiIconProvider, GeneratedIconProvider, type IconProvider } from './icons/provider'
+import { Session, type SessionSnapshot, type Source } from './session'
 import { DeepgramStt } from './stt/deepgram'
 import { WebSpeechStt } from './stt/webSpeech'
 import type { SttProvider } from './stt/types'
@@ -23,6 +24,19 @@ import type { Speaker } from './types'
 type CaptureMode = 'browser' | 'desktop'
 type SttKind = 'webspeech' | 'deepgram-proxy' | 'deepgram-direct'
 type StructureMode = 'local' | 'proxy' | 'direct'
+type IconMode = 'emoji' | 'ai' | 'none'
+
+function timestamp(): string {
+  return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+}
+
+function download(filename: string, blob: Blob) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 
 interface Line {
   speaker: Speaker
@@ -34,6 +48,7 @@ export function App() {
   const editorRef = useRef<Editor | null>(null)
   const sessionRef = useRef<Session | null>(null)
   const sourcesRef = useRef<Source[]>([])
+  const lastSnapshotRef = useRef<SessionSnapshot | null>(null)
 
   const [devices, setDevices] = useState<AudioInputDevice[]>([])
   const [micId, setMicId] = useState<string>('')
@@ -43,6 +58,7 @@ export function App() {
   const [deepgramKey, setDeepgramKey] = useState('')
   const [structureMode, setStructureMode] = useState<StructureMode>('local')
   const [llmKey, setLlmKey] = useState('')
+  const [iconMode, setIconMode] = useState<IconMode>('emoji')
 
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -103,11 +119,16 @@ export function App() {
       else if (structureMode === 'direct') structurer = new LlmStructurer({ apiKey: llmKey })
       else structurer = new HeuristicStructurer()
 
+      let iconProvider: IconProvider | undefined
+      if (iconMode === 'ai') iconProvider = new GeneratedIconProvider()
+      else if (iconMode === 'emoji') iconProvider = new EmojiIconProvider()
+
       const renderer = new GraphRenderer(editorRef.current)
       const session = new Session({
         renderer,
         structurer,
         makeStt,
+        iconProvider,
         flushIntervalMs: structureMode === 'local' ? 1500 : 8000,
         onTranscript: (r) => pushLine({ speaker: r.speaker, text: r.text, final: r.isFinal }),
         onError: (e) => setError(String(e)),
@@ -125,10 +146,48 @@ export function App() {
   }
 
   function stop() {
+    if (sessionRef.current) lastSnapshotRef.current = sessionRef.current.getSnapshot()
     sessionRef.current?.stop(sourcesRef.current)
     sessionRef.current = null
     sourcesRef.current = []
     setRunning(false)
+  }
+
+  async function exportPng() {
+    const editor = editorRef.current
+    if (!editor) return
+    const ids = [...editor.getCurrentPageShapeIds()]
+    if (ids.length === 0) {
+      setError('書き出す内容がありません')
+      return
+    }
+    try {
+      const { blob } = await editor.toImage(ids, { format: 'png', background: true, scale: 2 })
+      download(`grareco-${timestamp()}.png`, blob)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  function exportJson() {
+    const snap = sessionRef.current?.getSnapshot() ?? lastSnapshotRef.current
+    if (!snap) {
+      setError('保存できるセッションがありません（収録後に使えます）')
+      return
+    }
+    download(
+      `grareco-${timestamp()}.json`,
+      new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' }),
+    )
+  }
+
+  function clearCanvas() {
+    const editor = editorRef.current
+    if (!editor) return
+    const ids = [...editor.getCurrentPageShapeIds()]
+    if (ids.length === 0) return
+    if (!confirm('キャンバスを全消去します。よろしいですか？')) return
+    editor.deleteShapes(ids)
   }
 
   const remoteDisabled = sttKind === 'webspeech'
@@ -237,6 +296,21 @@ export function App() {
           )}
         </section>
 
+        <section>
+          <label>アイコン</label>
+          <select value={iconMode} onChange={(e) => setIconMode(e.target.value as IconMode)} disabled={running}>
+            <option value="emoji">絵文字（キー不要）</option>
+            <option value="ai">AI生成（サーバ経由・デプロイ時）</option>
+            <option value="none">なし</option>
+          </select>
+          {iconMode === 'ai' && (
+            <p className="hint">
+              /api/icon 経由で手描き風アイコンを非同期生成（OPENAI_API_KEY が必要）。
+              同じキーワードはキャッシュされ再生成されない。
+            </p>
+          )}
+        </section>
+
         {!running ? (
           <button className="primary" onClick={start}>
             ● 収録開始
@@ -246,6 +320,14 @@ export function App() {
             ■ 停止
           </button>
         )}
+
+        <div className="toolbar">
+          <button onClick={exportPng}>🖼 PNG書き出し</button>
+          <button onClick={exportJson}>💾 JSON保存</button>
+          <button onClick={clearCanvas} disabled={running}>
+            🗑 クリア
+          </button>
+        </div>
 
         {error && <p className="error">{error}</p>}
 
@@ -260,8 +342,11 @@ export function App() {
 
       <main className="canvas">
         <Tldraw
+          persistenceKey="grareco-live"
           onMount={(editor) => {
             editorRef.current = editor
+            // デバッグ用（コンソール/E2Eテストから編集APIを触れるように）
+            ;(window as unknown as { editor: Editor }).editor = editor
           }}
         />
       </main>

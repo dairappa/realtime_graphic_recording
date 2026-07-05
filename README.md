@@ -6,12 +6,14 @@
 設計の全体像・技術選定は [`PLAN.md`](./PLAN.md)、
 Cloudflare へのデプロイ（最小認証つき）は [`DEPLOY.md`](./DEPLOY.md) を参照。
 
-## このプロトでできること
+## できること
 
 - tldraw キャンバスへ、発話を逐次ノード化して描画（時系列リンク）
 - 音声取込: マイク（自分）＋ 相手の声（画面共有タブ音声 / 仮想オーディオデバイス）
 - STT: **Web Speech API（無料・キー不要）** / Deepgram（サーバ経由 or 直結・相手の声も対応）
-- 構造化: **ローカル簡易抽出（キー不要）** / OpenAI（要キー・差分構造化）
+- 構造化: **ローカル簡易抽出（キー不要）** / OpenAI（サーバ経由 or 直結・差分構造化）
+- アイコン: **絵文字（キー不要）** / AI生成（gpt-image-1・非同期＆キャッシュ・手描き風）
+- 保存: キャンバスはブラウザに自動永続化。**PNG書き出し / セッションJSON保存** ボタンつき
 
 > **すぐ試す最短経路**: STT=Web Speech、構造化=キー無し（ローカル）。
 > Chrome で開いてマイクに話すと、発話がノードになって増えていきます。
@@ -58,9 +60,11 @@ src/
   canvas/graphRenderer.ts # GraphPatch → tldraw シェイプ
   session.ts              # capture→STT→structurer→renderer の束ね
   App.tsx                 # UI
+  icons/provider.ts       # IconProvider: 絵文字 / AI生成(/api/icon 経由)
 worker/
   index.ts                # 静的配信 + Basic認証 + OpenAIプロキシ(/api/openai)
                           #   + Deepgram WS中継(/api/deepgram, チケット認可)
+                          #   + アイコン生成(/api/icon, Cache APIで再利用)
 wrangler.toml             # main(worker) + [assets](dist)
 ```
 

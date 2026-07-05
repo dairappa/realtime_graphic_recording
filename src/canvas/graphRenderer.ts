@@ -1,5 +1,6 @@
-import { type Editor, type TLShapeId, createShapeId, toRichText } from 'tldraw'
+import { AssetRecordType, type Editor, type TLShapeId, createShapeId, toRichText } from 'tldraw'
 import type { GraphPatch, NodeKind, Speaker } from '../types'
+import type { IconResult } from '../icons/provider'
 
 const NODE_W = 220
 const NODE_H = 84
@@ -73,7 +74,8 @@ export class GraphRenderer {
           start: { x: from.x + NODE_W / 2, y: from.y + NODE_H / 2 },
           end: { x: to.x + NODE_W / 2, y: to.y + NODE_H / 2 },
           color: 'grey' as any,
-          ...(edge.label ? { richText: toRichText(edge.label) } : {}),
+          // arrow のラベルは richText ではなく text（string）
+          ...(edge.label ? { text: edge.label } : {}),
         },
       })
     }
@@ -96,5 +98,49 @@ export class GraphRenderer {
         animation: { duration: 300 },
       })
     }
+  }
+
+  /** ノードの左上にアイコンを描き足す（非同期経路から届いた時点で呼ばれる）。 */
+  applyIcon(nodeId: string, icon: IconResult) {
+    const pos = this.placed.get(nodeId)
+    if (!pos) return
+    const iconShapeId = createShapeId(`icon_${nodeId}`)
+    if (this.editor.getShape(iconShapeId)) return
+
+    if (icon.type === 'emoji') {
+      this.editor.createShape({
+        id: iconShapeId,
+        type: 'text',
+        x: pos.x - 14,
+        y: pos.y - 26,
+        props: { richText: toRichText(icon.char), size: 's', autoSize: true },
+      })
+      return
+    }
+
+    const assetId = AssetRecordType.createId()
+    this.editor.createAssets([
+      {
+        id: assetId,
+        typeName: 'asset',
+        type: 'image',
+        props: {
+          name: `icon_${nodeId}.png`,
+          src: icon.dataUrl,
+          w: 256,
+          h: 256,
+          mimeType: 'image/png',
+          isAnimated: false,
+        },
+        meta: {},
+      },
+    ])
+    this.editor.createShape({
+      id: iconShapeId,
+      type: 'image',
+      x: pos.x - 22,
+      y: pos.y - 30,
+      props: { assetId, w: 52, h: 52 },
+    })
   }
 }

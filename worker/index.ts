@@ -74,6 +74,75 @@ async function proxyOpenAI(request: Request, env: Env): Promise<Response> {
   })
 }
 
+// ---- アイコン画像生成（Phase 2: 非同期・キャッシュ） -----------------------
+//
+// GET /api/icon?q=<keyword> … キーワードから手描き風アイコンPNGを生成して返す。
+// OpenAI Images (gpt-image-1) を使い、Cache API で同一キーワードを再利用する
+// （生成は1回きり・2回目以降はエッジキャッシュから返る = 安価）。
+
+async function generateIcon(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (!env.OPENAI_API_KEY) {
+    return new Response(JSON.stringify({ error: 'OPENAI_API_KEY 未設定' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  const url = new URL(request.url)
+  const q = (url.searchParams.get('q') ?? '').trim().toLowerCase().slice(0, 60)
+  if (!q) return new Response('q パラメータが必要です', { status: 400 })
+
+  // 認証ヘッダ等を含まない正規化 URL をキャッシュキーにする
+  const cacheKey = new Request(new URL(`/api/icon?q=${encodeURIComponent(q)}`, url.origin).toString())
+  const cache = caches.default
+  const hit = await cache.match(cacheKey)
+  if (hit) return hit
+
+  const prompt =
+    `Simple hand-drawn doodle icon of "${q}". ` +
+    'Thick black marker outlines, one warm accent color, plain white background, ' +
+    'sticker style, centered, no text, no letters.'
+  const upstream = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-image-1',
+      prompt,
+      size: '1024x1024',
+      quality: 'low', // アイコン用途には十分・最安
+      n: 1,
+    }),
+  })
+  if (!upstream.ok) {
+    return new Response(JSON.stringify({ error: `画像生成に失敗: ${upstream.status} ${await upstream.text()}` }), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  const data = (await upstream.json()) as { data?: { b64_json?: string }[] }
+  const b64 = data.data?.[0]?.b64_json
+  if (!b64) {
+    return new Response(JSON.stringify({ error: '画像生成の応答が不正です' }), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+
+  const res = new Response(bytes, {
+    headers: {
+      'content-type': 'image/png',
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  })
+  ctx.waitUntil(cache.put(cacheKey, res.clone()))
+  return res
+}
+
 // ---- Deepgram WebSocket 中継 ----------------------------------------------
 //
 // ブラウザ ⇄ Worker ⇄ Deepgram の双方向リレー。API キーは Worker 内だけで使う。
@@ -191,7 +260,7 @@ async function proxyDeepgram(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
 
     // 診断用: 実行時 env にシークレットが届いているかを確認する（値は返さない）。
@@ -222,6 +291,11 @@ export default {
     if (url.pathname === '/api/openai') {
       if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 })
       return proxyOpenAI(request, env)
+    }
+
+    if (url.pathname === '/api/icon') {
+      if (request.method !== 'GET') return new Response('Method Not Allowed', { status: 405 })
+      return generateIcon(request, env, ctx)
     }
 
     // それ以外は静的アセット（dist）を配信

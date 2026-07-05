@@ -9,6 +9,8 @@ export interface GraphNode {
   label: string
   kind: NodeKind
   speaker?: Speaker
+  /** アイコン用キーワード（英語1〜2語）。LLM が提案し、画像生成やemoji選択に使う。 */
+  icon?: string
 }
 
 export interface GraphEdge {

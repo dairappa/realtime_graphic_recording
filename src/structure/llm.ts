@@ -5,9 +5,10 @@ const SYSTEM = `あなたは会議のグラフィックレコーディングを�
 直近の発話と、現在のグラレコ状態(JSON)を受け取り、状態への「差分パッチ」だけを返します。
 論点・主張・決定・質問・アクションを抽出し、既存ノードと関連づけてください。
 出力は次の形の JSON のみ（前後の説明やコードフェンス無し）:
-{"addNodes":[{"id":"一意ID","label":"短い見出し","kind":"topic|point|decision|question|action","speaker":"me|remote"}],
+{"addNodes":[{"id":"一意ID","label":"短い見出し","kind":"topic|point|decision|question|action","speaker":"me|remote","icon":"英語1-2語"}],
  "addEdges":[{"id":"一意ID","from":"ノードID","to":"ノードID","label":"任意"}],
  "updateNodes":[{"id":"既存ID","label":"更新後"}]}
+icon はノード内容を絵にするための英語キーワード（例 "budget", "rocket launch"）。
 新規IDは必ずユニークに。既存ノードと重複する話題は addNodes せず updateNodes か addEdges で繋ぐこと。`
 
 export interface LlmStructurerOptions {
