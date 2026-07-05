@@ -7,3 +7,6 @@ APP_PASSWORD=changeme
 
 # OpenAI をサーバ経由で使う場合のみ
 OPENAI_API_KEY=sk-xxxxxxxx
+
+# Deepgram をサーバ経由で使う場合のみ
+DEEPGRAM_API_KEY=xxxxxxxx

@@ -10,7 +10,7 @@ Cloudflare へのデプロイ（最小認証つき）は [`DEPLOY.md`](./DEPLOY.
 
 - tldraw キャンバスへ、発話を逐次ノード化して描画（時系列リンク）
 - 音声取込: マイク（自分）＋ 相手の声（画面共有タブ音声 / 仮想オーディオデバイス）
-- STT: **Web Speech API（無料・キー不要）** / Deepgram（要キー・相手の声も対応）
+- STT: **Web Speech API（無料・キー不要）** / Deepgram（サーバ経由 or 直結・相手の声も対応）
 - 構造化: **ローカル簡易抽出（キー不要）** / OpenAI（要キー・差分構造化）
 
 > **すぐ試す最短経路**: STT=Web Speech、構造化=キー無し（ローカル）。
@@ -53,17 +53,20 @@ Secret に `APP_PASSWORD` を設定。
 ```
 src/
   audio/capture.ts        # 2 ストリーム取得（mic / display / 仮想デバイス）
-  stt/                    # SttProvider: webSpeech.ts / deepgram.ts
+  stt/                    # SttProvider: webSpeech.ts / deepgram.ts(直結/サーバ経由)
   structure/              # Structurer: heuristic.ts / llm.ts(OpenAI: 直結/サーバ経由)
   canvas/graphRenderer.ts # GraphPatch → tldraw シェイプ
   session.ts              # capture→STT→structurer→renderer の束ね
   App.tsx                 # UI
 worker/
   index.ts                # 静的配信 + Basic認証 + OpenAIプロキシ(/api/openai)
+                          #   + Deepgram WS中継(/api/deepgram, チケット認可)
 wrangler.toml             # main(worker) + [assets](dist)
 ```
 
 ## 注意（プロト段階）
 
-- API キーは検証用にブラウザ直結。**本番は Cloudflare Worker でプロキシしてキーを秘匿**すること。
+- **本番（デプロイ時）は Deepgram / OpenAI とも「サーバ経由」モードを選ぶ**こと。
+  キーは Cloudflare Worker に秘匿され、ブラウザには載らない。
+  「ブラウザ直結」モードはローカル検証用（キーが露出する）。
 - Web Speech API は任意ストリームを扱えず、OS 既定入力のみ書き起こす（相手の声は Deepgram で）。

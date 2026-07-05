@@ -21,7 +21,7 @@ import type { Structurer } from './structure/types'
 import type { Speaker } from './types'
 
 type CaptureMode = 'browser' | 'desktop'
-type SttKind = 'webspeech' | 'deepgram'
+type SttKind = 'webspeech' | 'deepgram-proxy' | 'deepgram-direct'
 type StructureMode = 'local' | 'proxy' | 'direct'
 
 interface Line {
@@ -82,7 +82,8 @@ export function App() {
       sources.push({ stream: await captureMic(micId || undefined), speaker: 'me' })
 
       // 相手の声。Web Speech API は任意ストリームを扱えないため me のみ。
-      if (sttKind === 'deepgram') {
+      const isDeepgram = sttKind !== 'webspeech'
+      if (isDeepgram) {
         if (mode === 'browser') {
           sources.push({ stream: await captureDisplayAudio(), speaker: 'remote' })
         } else {
@@ -91,8 +92,11 @@ export function App() {
         }
       }
 
-      const makeStt = (): SttProvider =>
-        sttKind === 'deepgram' ? new DeepgramStt(deepgramKey) : new WebSpeechStt()
+      const makeStt = (): SttProvider => {
+        if (sttKind === 'deepgram-proxy') return new DeepgramStt({ mode: 'proxy' })
+        if (sttKind === 'deepgram-direct') return new DeepgramStt({ mode: 'direct', apiKey: deepgramKey })
+        return new WebSpeechStt()
+      }
 
       let structurer: Structurer
       if (structureMode === 'proxy') structurer = new LlmStructurer({ endpoint: '/api/openai' })
@@ -139,9 +143,10 @@ export function App() {
           <label>STT エンジン</label>
           <select value={sttKind} onChange={(e) => setSttKind(e.target.value as SttKind)} disabled={running}>
             <option value="webspeech">Web Speech API（無料・マイクのみ）</option>
-            <option value="deepgram">Deepgram（要キー・相手の声も）</option>
+            <option value="deepgram-proxy">Deepgram（サーバ経由・デプロイ時）</option>
+            <option value="deepgram-direct">Deepgram（ブラウザ直結・ローカル検証）</option>
           </select>
-          {sttKind === 'deepgram' && (
+          {sttKind === 'deepgram-direct' && (
             <input
               type="password"
               placeholder="Deepgram API キー"
@@ -149,6 +154,9 @@ export function App() {
               onChange={(e) => setDeepgramKey(e.target.value)}
               disabled={running}
             />
+          )}
+          {sttKind === 'deepgram-proxy' && (
+            <p className="hint">/api/deepgram 経由（キーはサーバ秘匿）。Cloudflare で DEEPGRAM_API_KEY 設定が必要。</p>
           )}
         </section>
 

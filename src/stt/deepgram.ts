@@ -1,21 +1,26 @@
 import type { SttProvider, SttResult } from './types'
 import type { Speaker } from '../types'
 
+export type DeepgramSttOptions =
+  | { mode: 'proxy' }
+  | { mode: 'direct'; apiKey: string }
+
 /**
  * Deepgram ストリーミング STT（任意 MediaStream 対応・本番経路）。
  *
- * ブラウザの WebSocket は Authorization ヘッダを付けられないため、Deepgram が
- * サポートする subprotocol 方式（['token', apiKey]）でキーを渡す。
- *
- * ⚠️ 本番ではキーをクライアントに置かず Cloudflare Worker でプロキシすること。
- * ここはローカル検証用の直結実装。
+ * 2 モード:
+ *  - proxy:  Cloudflare Worker の /api/deepgram を中継（キーはサーバ秘匿）← 本番推奨
+ *            WS ハンドシェイク前に /api/deepgram/ticket で短命チケットを取得する。
+ *  - direct: Deepgram へブラウザ直結（ローカル検証用。キーが露出する点に注意）。
+ *            ブラウザの WebSocket は Authorization ヘッダを付けられないため、
+ *            subprotocol 方式（['token', apiKey]）でキーを渡す。
  */
 export class DeepgramStt implements SttProvider {
   private ws: WebSocket | null = null
   private recorder: MediaRecorder | null = null
   private stopped = false
 
-  constructor(private apiKey: string) {}
+  constructor(private opts: DeepgramSttOptions) {}
 
   async start(stream: MediaStream, speaker: Speaker, onResult: (r: SttResult) => void) {
     this.stopped = false
@@ -27,8 +32,21 @@ export class DeepgramStt implements SttProvider {
       // 相手チャンネル側は複数人の可能性があるので話者分離を有効化
       diarize: speaker === 'remote' ? 'true' : 'false',
     })
-    const url = `wss://api.deepgram.com/v1/listen?${params.toString()}`
-    const ws = new WebSocket(url, ['token', this.apiKey])
+
+    let ws: WebSocket
+    if (this.opts.mode === 'proxy') {
+      const res = await fetch('/api/deepgram/ticket', { method: 'POST', credentials: 'include' })
+      if (!res.ok) throw new Error(`Deepgram チケット取得に失敗: ${res.status} ${await res.text()}`)
+      const { ticket } = await res.json()
+      params.set('ticket', ticket)
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
+      ws = new WebSocket(`${scheme}://${location.host}/api/deepgram?${params.toString()}`)
+    } else {
+      ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
+        'token',
+        this.opts.apiKey,
+      ])
+    }
     this.ws = ws
 
     ws.onopen = () => {
@@ -56,6 +74,11 @@ export class DeepgramStt implements SttProvider {
 
     ws.onerror = () => {
       if (!this.stopped) console.warn('Deepgram WebSocket エラー')
+    }
+    ws.onclose = (e) => {
+      if (!this.stopped && e.code !== 1000) {
+        console.warn(`Deepgram WebSocket が閉じました: code=${e.code} reason=${e.reason}`)
+      }
     }
   }
 

@@ -21,6 +21,7 @@
 | `APP_PASSWORD` | Basic 認証のパスワード | 認証を有効にするなら必須 |
 | `APP_USER` | Basic 認証のユーザー名（既定 `team`） | 任意 |
 | `OPENAI_API_KEY` | OpenAI サーバ経由モードを使う場合のみ | 任意 |
+| `DEEPGRAM_API_KEY` | Deepgram サーバ経由モードを使う場合のみ | 任意 |
 
 ---
 
@@ -49,7 +50,7 @@
    - **Production branch**: `demo`（動作確認用に作ったブランチ）
 4. **Settings → Variables and Secrets** に登録:
    - `APP_PASSWORD`（Encrypt 推奨）
-   - 任意で `APP_USER`、`OPENAI_API_KEY`
+   - 任意で `APP_USER`、`OPENAI_API_KEY`、`DEEPGRAM_API_KEY`
 5. 保存 → デプロイ。以後は `demo` へ push するたび自動デプロイ。
 
 ## 方法B: CLI（wrangler）
@@ -62,6 +63,7 @@ npm run deploy   # = npm run build && wrangler deploy
 npx wrangler secret put APP_PASSWORD
 npx wrangler secret put APP_USER          # 任意
 npx wrangler secret put OPENAI_API_KEY    # 任意
+npx wrangler secret put DEEPGRAM_API_KEY  # 任意
 
 npm run deploy   # 反映のため再デプロイ
 ```
@@ -82,6 +84,16 @@ npm run deploy   # 反映のため再デプロイ
 - サイドバーの構造化エンジンを **「OpenAI（サーバ経由・デプロイ時）」** に切替
 - ブラウザにキーは載らず、`/api/openai`（Basic 認証で保護）経由で呼ぶ
 
+## Deepgram をサーバ経由で使う場合（Phase 1）
+
+- `DEEPGRAM_API_KEY` を設定してデプロイ
+- サイドバーの STT エンジンを **「Deepgram（サーバ経由・デプロイ時）」** に切替
+- ブラウザにキーは載らない。接続の流れ:
+  1. クライアントが `POST /api/deepgram/ticket`（Basic 認証つき）で短命チケット（120秒）を取得
+  2. `wss://…/api/deepgram?ticket=…` へ WebSocket 接続（WS ハンドシェイクには
+     Basic ヘッダが載らないことがあるため、チケットで認可する）
+  3. Worker が Deepgram へサーバ側 WebSocket を張り、音声と結果を双方向リレー
+
 ## ローカルで Worker ごと動かす
 
 ```bash
@@ -94,7 +106,7 @@ npm run cf:dev                   # = build して wrangler dev
 
 ## 補足・既知の制約
 
-- **Deepgram は現状ブラウザ直結**（WebSocket）。本番でキーを隠すには Worker での
-  WS プロキシ or 短命キー発行が必要（次フェーズ）。動作確認は Web Speech で完結する。
+- Deepgram の「ブラウザ直結」モードはローカル検証用（キーが露出する）。
+  本番は上記のサーバ経由モードを使うこと。動作確認だけなら Web Speech で完結する。
 - Basic 認証は「最小限」。本格運用は **Cloudflare Access（Zero Trust / SSO）** へ
   差し替え推奨（メール認証・無料枠50ユーザー）。
